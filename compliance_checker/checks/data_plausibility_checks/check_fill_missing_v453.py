@@ -9,17 +9,46 @@ Intended to be included in the WCRP plugins.
 
 from compliance_checker.base import BaseCheck, TestCtx
 import numpy as np
-from compliance_checker.checks.data_plausibility_checks.utilities import (get_filtered_dimensions,
-                        check_variable_conditions,
-                        dump_data_file,
-                        prepare_results_expanded,
-                        check_variable_conditions_expanded,
-                        extract_fail_info_fill_missing)
 import numpy.ma as ma
 
-def check_all_nan(data_slice):
-    return np.sum(np.isnan(data_slice))
 
+from compliance_checker.checks.data_plausibility_checks.utils.dimensions import get_filtered_dimensions
+from compliance_checker.checks.data_plausibility_checks.utils.data import check_variable_conditions,check_variable_conditions_expanded
+from compliance_checker.checks.data_plausibility_checks.utils.auxiliar import (dump_data_file_extended,
+                            ExtendedTestCtx
+                            )
+def detect_changes_in_values(coordinate_values):
+    """
+    Detects coordinates where the values change in a list of coordinate-value pairs.
+
+    Parameters:
+    coordinate_values (list of tuples): A list of tuples where each tuple is (coordinate, value).
+
+    Returns:
+    list: A list of tuples where the values change.
+    """
+    if not coordinate_values:
+        return []
+
+    coordinate_values = [(coords, int(val)) for coords, val in coordinate_values]
+    coordinates, values = zip(*coordinate_values)
+    values_array = np.array(values)
+
+    # Compute the differences between consecutive values
+    diff_values = np.diff(values_array)
+
+    # Find the indices where the differences are not zero
+    non_zero_diff_indices = np.nonzero(diff_values)[0]
+
+    # Adjust indices to match the original array
+    non_zero_diff_indices = non_zero_diff_indices + 1
+        
+    # Get the coordinates where the values are not the same
+    detected = [coordinate_values[i] for i in non_zero_diff_indices]
+    # Include the first element if it's different from the second
+    if len(values_array) > 1 and values_array[0] != values_array[1]:
+        detected.insert(0, coordinate_values[0])
+    return detected
 def check_value(data_slice, parameters):
     val = parameters['val']
     val_name = parameters['name']
@@ -44,27 +73,22 @@ def load_value_to_check(var_obj, parameter, ctx):
         raise ValueError(f"Invalid parameter {parameter}")
     return parameters_func, ctx
 
-def check_fillvalues_timeseries(dataset, variable, parameter="FillValue", severity=BaseCheck.MEDIUM):
-    """
-    Check for FillValue or MissingValue in a dataset.
 
-    Parameters:
-    - dataset (netCDF4.Dataset): The dataset containing the values to be checked.
-    - variable (str): The variable to be checked.
-    - parameter (str): The parameter to check, either "FillValue" or "MissingValue".
-    - severity : The severity level of the check.
 
-    Returns:
-    - TestCtx: A TestCtx object containing the results of the check.
 
-    Notes:
-    - This function writes a file with the results of the check when a anomaly in the data is detected.
-    """
-    ctx = TestCtx(severity, "Check for FillValue or MissingValue in a dataset.")
+def check_fillvalues_timeseries(
+    dataset, variable, parameter="FillValue", severity=BaseCheck.MEDIUM
+):
+    ctx = ExtendedTestCtx(
+        category=severity,
+        description=f"Check for {parameter} in a dataset.",
+        dataset_name=getattr(dataset, "filepath", lambda: "unknown")(),
+        test_function="check_fillvalues_timeseries",
+        parameters={"parameter": parameter},
+        variable=variable,
+    )
 
-    ctx.variable = variable
     check_dims = get_filtered_dimensions(dataset, variable)
-
     var_obj = dataset.variables[variable]
 
     parameters_func, ctx = load_value_to_check(var_obj, parameter, ctx)
@@ -72,31 +96,68 @@ def check_fillvalues_timeseries(dataset, variable, parameter="FillValue", severi
         ctx.add_pass()
         ctx.messages.append(f"{parameter} not found in the variable attributes.")
         return ctx
-    
+
     label = "fill_missing"
+    # Detect failed coordinates
     if len(check_dims) > 1:
-        nans_coordinates = check_variable_conditions_expanded(dataset, variable, check_dims, check_value, parameters=parameters_func)
-    elif len(check_dims) == 1:
-        nans_coordinates = {}
-        nans_coordinates[parameter] = {}
-        nans_coordinates[parameter]["None"] = check_variable_conditions(dataset, variable, check_dims, check_value, parameters=parameters_func)
-    results, check, example_fail = prepare_results_expanded(nans_coordinates, predicate=lambda x: x > 0, label=label)
-    if check:
-        example_fail = extract_fail_info_fill_missing(example_fail)
+        failing_coords = check_variable_conditions_expanded(
+            dataset, variable, check_dims, check_value, parameters=parameters_func
+        )
+    else:
+        failing_coords = {
+            parameter: {
+                "None": check_variable_conditions(
+                    dataset, variable, check_dims, check_value, parameters=parameters_func
+                )
+            }
+        }
+
+    flattened= [item for d in failing_coords.values() for v in d.values() for item in v]
+    #check if any fillvalue/missing value detected
+    if len(flattened) > 0:
+        check = True
+    else:
+        check = False
+    #check if fillvalue/missing value are constant
+    detected_diff=detect_changes_in_values(flattened)
+    if len(detected_diff) > 0:
+        check_diff_flag = True
+    else:
+        check_diff_flag = False
+    #Preparing output for each case
+    if check and check_diff_flag==False:
+        total_coords = [coord for (coord, _) in flattened]
+        vals = [val1 for (_, val1) in flattened]
+        for coord,value in zip(total_coords, vals):
+            ctx.add_coordinate(
+                                name=",".join(check_dims),
+                                indices=[coord],
+                                values=[value],)
+        message = (
+        f"{parameter} detected in the dataset. "
+        f"{parameter} are constant. "
+        f"Number of {parameter}: {len(flattened)}. "
+        )
+        ctx.add_failure(message)
+        dump_data_file_extended(dataset, variable, "check_fillvalues", ctx)
+    elif check and check_diff_flag:
+        total_coords = [coord for (coord, _) in detected_diff]
+        vals = [val1 for (_, val1) in detected_diff]
+        for coord,value in zip(total_coords, vals):
+            ctx.add_coordinate(
+                                name=",".join(check_dims),
+                                indices=[coord],
+                                values=[value],)
 
         message = (
             f"{parameter} detected in the dataset. "
             f"{parameter} are not constant. "
-            f"Number of failing times : {example_fail['num_of_failing_times']}. "
-            f"Number of {parameter}: {example_fail[f'num_{label}s']}. "
-            f"Example coordinates: {example_fail[f'{label}_coordinates']}. "
-            f"Example coordinates different count of {parameter}: {example_fail['diff_coordinates']}. "
+            f"Number of difference in {parameter}: {len(detected_diff)}. "
         )
         ctx.add_failure(message)
-        dump_data_file(dataset, variable, 'check_fillvalues', ctx)
+        dump_data_file_extended(dataset, variable, "check_fillvalues", ctx)
     else:
-        message = (f"Anomalous {parameter} not detected in the dataset.")
         ctx.add_pass()
-        ctx.messages.append(message)
+        ctx.messages.append(f"No anomalous {parameter} detected in the dataset.")
 
     return ctx

@@ -11,7 +11,10 @@ from compliance_checker.base import BaseCheck, TestCtx
 import numpy as np
 import os
 import json
-from compliance_checker.checks.data_plausibility_checks.utilities import get_ds_dimensions, dump_data_file
+
+
+from compliance_checker.checks.data_plausibility_checks.utils.dimensions import get_dimension_info
+from compliance_checker.checks.data_plausibility_checks.utils.auxiliar import ExtendedTestCtx, dump_data_file_extended,Coordinate
 
 def get_thresholds_variable(dataset, thresholds_file):
     """
@@ -44,6 +47,8 @@ def get_thresholds_variable(dataset, thresholds_file):
     for var_name, var in dataset.variables.items():
         if hasattr(var, 'standard_name'):
             if var.standard_name in standard_names:
+                if "threshold" in var_name.lower():
+                    continue
                 matching_vars.append(var_name)
                 standard_name = var.standard_name
 
@@ -69,10 +74,32 @@ def check_units(dataset, var, thresholds_values):
     - thresholds_values (dict): The updated thresholds with converted units if necessary.
     """
     if dataset.variables[var].units != thresholds_values["unit"]:
+        #temperature
         if dataset.variables[var].units in ["C", "celsius", "Celsius", "c", "°C", "degC", "degrees_Celsius", "degreesC", "degrees_C", "degrees_Celsius"] and thresholds_values["unit"] in ["Kelvin", "K", "kel", "degK", "degrees_Kelvin", "degreesK", "degrees_K", "degrees_Kelvin"]:
             thresholds_values["min"] -= 273.15
             thresholds_values["max"] -= 273.15
             thresholds_values["unit"] = "Celsius"
+        #clt,ice,hurs
+        elif dataset.variables[var].units in ["%", "percent", "Percent", "perc", "percentage", "Percentage"]  and thresholds_values["unit"] in ["l","1", "fraction", "fractional"]:
+            thresholds_values["min"] *= 100
+            thresholds_values["max"] *= 100
+            thresholds_values["unit"] = "percent"
+        #hurs
+        elif dataset.variables[var].units in ["gr kg-1"] and thresholds_values["unit"] in ["l","1", "fraction", "fractional"]:
+            thresholds_values["min"] *= 1000
+            thresholds_values["max"] *= 1000
+            thresholds_values["unit"] = "gr kg-1"
+        #pr
+        elif dataset.variables[var].units in ["mm", "millimeter"] and thresholds_values["unit"] in ["m"]:
+            thresholds_values["min"] *= 1000
+            thresholds_values["max"] *= 1000
+            thresholds_values["unit"] = "mm"
+        #rsds,rlds
+        elif dataset.variables[var].units in ["J m**-2"] and thresholds_values["unit"] in ["W m**-2"]:
+            thresholds_values["min"] *= 3600*24
+            thresholds_values["max"] *= 3600*24
+            thresholds_values["unit"] = "J m**-2 day**-1"
+
     return thresholds_values
 
 def detect_outliers(data: np.ndarray, min_threshold: float, max_threshold: float):
@@ -89,7 +116,6 @@ def detect_outliers(data: np.ndarray, min_threshold: float, max_threshold: float
     """
     mask_min = data < min_threshold
     mask_max = data > max_threshold
-
     outlier_coords_min = np.column_stack(np.where(mask_min))
     outlier_coords_max = np.column_stack(np.where(mask_max))
 
@@ -113,12 +139,13 @@ def detect_outliers(data: np.ndarray, min_threshold: float, max_threshold: float
     total_data_points = data.size
     num_outliers = len(outliers['values'])
     proportion_outliers = num_outliers / total_data_points
+    #print(outliers["values"])
     outliers['values'] = [int(x) for x in outliers['values']]
 
     outliers['proportion'] = proportion_outliers
     return outliers
 
-def extract_outlier_coordinates(dataset, results, lon_dim, lat_dim, time_dim):
+def extract_outlier_coordinates(dataset, results, dim_dict):
     """
     Extract the longitude, latitude, and time values for the outlier indices.
 
@@ -132,21 +159,36 @@ def extract_outlier_coordinates(dataset, results, lon_dim, lat_dim, time_dim):
     Returns:
     - outlier_coords_values (np.ndarray): The coordinate values for the outliers.
     """
-    # Access the variables for longitude, latitude, and time
-    lon = dataset.variables[lon_dim][:]
-    lat = dataset.variables[lat_dim][:]
-    time = dataset.variables[time_dim][:]
-
-    # Extract the outlier indices from the results
     outlier_coords = np.array(results["outliers"]["coordinates_indices"])
 
-    # Extract the coordinate values for the outlier indices
-    outlier_lon = lon[outlier_coords[:, 2]]
-    outlier_lat = lat[outlier_coords[:, 1]]
-    outlier_time = time[outlier_coords[:, 0]]
+    # Access the variables for longitude, latitude, and time
+    lon = dataset.variables[dim_dict['x']['name']][:]
+    lat = dataset.variables[dim_dict['y']['name']][:]
+    time = dataset.variables[dim_dict['t']['name']][:]
 
+    outlier_lon = lon[outlier_coords[:, dim_dict['x']['i']]]
+    outlier_lat = lat[outlier_coords[:, dim_dict['y']['i']]]
+    outlier_time = time[outlier_coords[:, dim_dict['t']['i']]]
+
+    
+    coords_list = [outlier_time, outlier_lat, outlier_lon]
+
+    # Extract the outlier indices from the results
+    if 'member' in dim_dict and dim_dict['member']:
+        mem = dataset.variables["member_id"][:]
+        outlier_mem = mem[outlier_coords[:, dim_dict['member']['i']]]
+        coords_list.append(outlier_mem)
+    if 'z' in dim_dict and dim_dict['z']:
+        z = dataset.variables[dim_dict['z']['name']][:] 
+        outlier_z = z[outlier_coords[:, dim_dict['z']['i']]]
+        coords_list.append(outlier_z)
+
+    if 'member' in dim_dict and dim_dict['member']:
+        outlier_mem = mem[outlier_coords[:, dim_dict['member']['i']]] if outlier_coords.shape[1] > 3 else None
+    if 'z' in dim_dict and dim_dict['z']:
+        outlier_z = z[outlier_coords[:, dim_dict['z']['i']]] if outlier_coords.shape[1] > 4 else None
     # Combine the coordinate values into a single array for each set of outliers
-    outlier_coords_values = np.column_stack((outlier_time, outlier_lat, outlier_lon))
+    outlier_coords_values = np.column_stack(coords_list)
 
     return outlier_coords_values
 
@@ -165,10 +207,7 @@ def prepare_results(outliers, thresholds, dataset, variable, number_limit=100000
     - results (dict): The prepared results.
     - check (bool): Indicating whether outliers were detected.
     """
-    dim_dict = get_ds_dimensions(dataset)
-    lon_dim = dim_dict['x_dim']
-    lat_dim = dim_dict['y_dim']
-    time_dim = dim_dict['time_dim']
+    dim_dict = get_dimension_info(dataset, variable)
 
     # Prepare the results
     results = {
@@ -184,7 +223,7 @@ def prepare_results(outliers, thresholds, dataset, variable, number_limit=100000
     }
 
     if len(results["outliers"]["coordinates_indices"]) > 0:
-        outlier_coords_values = extract_outlier_coordinates(dataset, results, lon_dim, lat_dim, time_dim)
+        outlier_coords_values = extract_outlier_coordinates(dataset, results, dim_dict)
         check = True
     else:
         check = False
@@ -196,46 +235,59 @@ def prepare_results(outliers, thresholds, dataset, variable, number_limit=100000
 
     return results, check
 
+
+
 def check_outliers(dataset, thresholds_file='outliers_thresholds.json', severity=BaseCheck.MEDIUM):
     """
     Check for outliers in a dataset based on predefined thresholds.
-
-    Parameters:
-    - dataset (netCDF4.Dataset): The dataset containing the values to be checked.
-    - thresholds_file (str): The path to the JSON file containing the thresholds.
-    - severity (int): The severity level of the check.
-
-    Returns:
-    - TestCtx: A TestCtx object containing the results of the check.
-
-    Notes:
-    - This function writes a file with the results of the check.
+    Uses ExtendedTestCtx to store detailed coordinate-level results.
     """
-    ctx = TestCtx(severity, "Check for outliers in a dataset based on predefined thresholds.")
+    ctx = ExtendedTestCtx(
+        category=severity,
+        description="Check for outliers in a dataset based on predefined thresholds.",
+        dataset_name=getattr(dataset, "filepath", lambda: "unknown")(),
+        test_function="check_outliers",
+        parameters={"thresholds_file": thresholds_file},
+    )
 
     try:
         thresholds, variable = get_thresholds_variable(dataset, thresholds_file)
     except ValueError as e:
         ctx.add_failure(f"Error getting thresholds: {str(e)}")
+        dump_data_file(dataset, "NONE", 'check_physically_impossible_outliers', ctx)
         return ctx
 
     data = dataset.variables[variable][:]
+    data = data.filled(np.nan)
     outliers = detect_outliers(data, thresholds['min'], thresholds['max'])
     try:
         results, check = prepare_results(outliers, thresholds, dataset, variable)
     except Exception as e:
         ctx.add_failure(f"Error preparing results: {e}")
+        dump_data_file(dataset, variable, 'check_physically_impossible_outliers', ctx)
         return ctx
 
     if check:
-        ctx.add_failure(f"Physically impossible outliers detected in the dataset."
-                        f"Example, value: {results['outliers']['values'][:5]}, "
-                        f"coordinates: {results['outliers']['coordinates_values'][:5]}, "
-                        f"coordinates_index: {results['outliers']['coordinates_indices'][:5]} "
-                        f"for a total of {results['num_outliers']} outliers and thresholds parameters: {thresholds}")
-        dump_data_file(dataset, variable, 'check_physically_impossible_outliers', ctx)
+        coords_values = results["outliers"]["values"]
+        coords_indices = results["outliers"]["coordinates_indices"]
+
+        for idx, value in zip(coords_indices, coords_values):
+            clean_idx = tuple(map(int, idx))  # Limpieza de np.int64
+            coord_obj = Coordinate(
+                name="outlier",
+                indices=[clean_idx],
+                values=[value],
+                result=True
+            )
+            ctx.coordinates.append(coord_obj)
+
+        ctx.add_failure(
+            f"Physically impossible outliers detected: {results['num_outliers']} "
+            f"Thresholds: {thresholds}"
+        )
+        dump_data_file_extended(dataset, variable, 'check_physically_impossible_outliers', ctx)
     else:
-        ctx.messages.append(f"No physically impossible outliers detected in the dataset.")
+        ctx.messages.append("No physically impossible outliers detected in the dataset.")
         ctx.add_pass()
 
     return ctx

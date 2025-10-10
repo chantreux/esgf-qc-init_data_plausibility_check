@@ -8,7 +8,7 @@ Intended to be included in the WCRP plugins.
 """
 
 from compliance_checker.base import BaseCheck, TestCtx
-from compliance_checker.checks.data_plausibility_checks.utilities import get_filtered_dimensions, get_ds_dimensions
+from compliance_checker.checks.data_plausibility_checks.utils.dimensions import get_filtered_dimensions, get_ds_dimensions
 
 def chunk_sizes_conditions(ds, variable='time'):
     """
@@ -48,7 +48,7 @@ def check_chunk_size(dataset, severity=BaseCheck.MEDIUM):
     """
     ctx = TestCtx(severity)
     variables = []
-    time_dim = get_ds_dimensions(dataset)['time_dim']
+    time_dim = get_ds_dimensions(dataset)['t']
     if time_dim in dataset.variables:
         variables.append(time_dim)
     if f"{time_dim}_bnds" in dataset.variables:
@@ -82,7 +82,7 @@ def check_chunk_size(dataset, severity=BaseCheck.MEDIUM):
 
                 case 1:
                     ctx.is_valid = True
-                    ctx.add_failure(f"Chunk size of '{variable}' ({chunk_size}) is different from its length ({len_time}).")
+                    ctx.add_failure(f"Chunk size of '{variable}' ({chunk_size}) is different from its length ({len_time}), but not too small.")
                 case 2:
                     ctx.is_valid = False
                     ctx.add_failure(f"Chunk size of '{variable}' ({chunk_size}) is not defined.")
