@@ -92,7 +92,7 @@ def collect_all_outlier_coords(values_dict):
 
 
 
-def check_zscore(dataset, variable, severity=BaseCheck.MEDIUM, threshold=5, parameter="Z-Score"):
+def check_spatial_stadistical_ouliers(dataset, variable, severity=BaseCheck.MEDIUM, threshold=5, parameter="Z-Score"):
 
 
     ctx = ExtendedTestCtx(
