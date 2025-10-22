@@ -9,7 +9,6 @@ Intended to be included in the WCRP plugins.
 
 from compliance_checker.base import BaseCheck, TestCtx
 import numpy as np
-import xarray as xr
 import multiprocessing
 import multiprocessing.shared_memory as shm
 from concurrent.futures import ProcessPoolExecutor

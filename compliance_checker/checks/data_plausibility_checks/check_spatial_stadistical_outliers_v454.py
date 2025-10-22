@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-check_zscore.py
+check_spatial_stadistical_outliers.py
 
 Check for outliers in the specified netCDF dataset based on the Z-Score along specific dimensions.
 """

@@ -1,12 +1,3 @@
-import cfutils as cf
-
-def get_ds_dimensions(dataset):
-    coord_vars=cf.coordinate_dimension_matrix(dataset)
-    if 'member' in dataset.dimensions:
-        coord_vars["member"] =  dataset.variables["member_id"].dimensions
-    for key in coord_vars :
-        coord_vars[key] = ''.join(coord_vars[key]) 
-    return coord_vars
 
 def get_ds_dimensions(dataset):
     """

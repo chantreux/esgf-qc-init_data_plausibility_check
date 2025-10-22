@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 """
-Test for zscore_v454.py
+Test for check_spatial_stadistical_outliers_v454.py
 """
 
 from compliance_checker.base import BaseCheck
-from compliance_checker.checks.data_plausibility_checks import zscore_v454 as checker
+from compliance_checker.checks.data_plausibility_checks import check_spatial_stadistical_outliers_v454 as checker
 from compliance_checker.tests import BaseTestCase
 from compliance_checker.tests.resources import STATIC_FILES
 
