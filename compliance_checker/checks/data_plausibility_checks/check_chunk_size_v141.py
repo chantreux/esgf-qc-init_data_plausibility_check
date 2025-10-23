@@ -36,7 +36,7 @@ def chunk_sizes_conditions(ds, variable='time'):
 
 def check_chunk_size(dataset, severity=BaseCheck.MEDIUM):
     """
-    Check the chunk size of a netCDF dataset.
+    Check the chunk size of dimension variables time and time_bnds in a netCDF dataset.
 
     Parameters:
     - dataset: netCDF4.Dataset

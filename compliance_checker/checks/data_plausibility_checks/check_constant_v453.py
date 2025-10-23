@@ -32,7 +32,7 @@ def check_all_constant(data_slice):
 
 def check_constants(dataset, variable, severity=BaseCheck.MEDIUM):
     """
-    Check for nans in a dataset 
+    Check for constant values in 2d slices of the specified variable in the netCDF dataset.
     Parameters:
     - dataset (netCDF4.Dataset): The dataset containing the values to be checked.
     - variable (str): The variable to be checked.

@@ -72,7 +72,7 @@ def calculate_time_series_max_min(dataset, variable):
 
 def check_spatial_statistical_ouliers(dataset, variable,  threshold=5, parameter="Z-Score",severity=BaseCheck.MEDIUM):
     """
-    Check for outliers in a dataset based on Z-Score and IQR, logs their coordinates, and records
+    Check for spatial outliers in a dataset based on Z-Score and IQR, logs their coordinates, and records
     results using ExtendedTestCtx when the condition checked fails
 
     Parameters:
