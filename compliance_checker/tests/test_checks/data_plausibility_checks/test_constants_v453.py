@@ -17,6 +17,7 @@ class TestConstants(BaseTestCase):
         output = checker.check_constants(dataset,variable, severity=BaseCheck.MEDIUM)
         results = output.to_result()
         assert results is not None
+        print(results)
         self.assert_result_is_good(results)
 
     # ERROR TEST CASES

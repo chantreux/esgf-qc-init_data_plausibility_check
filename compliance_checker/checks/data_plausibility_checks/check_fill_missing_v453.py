@@ -133,13 +133,12 @@ def check_fillvalues_timeseries(
                                 name=",".join(check_dims),
                                 indices=[coord],
                                 values=[value],)
-        message = (
+        ctx.add_pass()
+        ctx.messages.append(
         f"{parameter} detected in the dataset. "
         f"{parameter} are constant. "
-        f"Number of {parameter}: {len(flattened)}. "
-        )
-        ctx.add_failure(message)
-        dump_data_file_extended(dataset, variable, "check_fillvalues", ctx)
+        f"Number of {parameter}: {len(flattened)}.")
+
     elif check and check_diff_flag:
         total_coords = [coord for (coord, _) in detected_diff]
         vals = [val1 for (_, val1) in detected_diff]

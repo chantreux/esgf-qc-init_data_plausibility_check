@@ -76,9 +76,22 @@ def check_variable_conditions(
         elif isinstance(result, np.ndarray) and result.dtype == bool:
             true_coords = np.argwhere(result)
             for coord in true_coords:
-                coords_tuple = tuple(int(c) for c in combo+indices + tuple(coord))
+                if combo is not None:
+                    coords_tuple = tuple(int(c) for c in combo+indices + tuple(coord))
+                else:
+                    coords_tuple = tuple(int(c) for c in indices + tuple(coord))
+
                 value = int(values[tuple(coord)] if values is not None else None)
-                score = int(scores[tuple(coord)] if scores is not None else None)
+                if scores is None:
+                    score = None
+                else:
+                    # Step 2: Check if scores is an array or list (indexable)
+                    if isinstance(scores, (np.ndarray, list)):
+                        # Step 3: If scores is an array or list, index it
+                        score = int(scores[tuple(coord)])
+                    else:
+                        # Step 4: If scores is a scalar, use it directly
+                        score = int(scores)
 
                 results.append((coords_tuple, value, score))
         elif  isinstance(result, (int, np.integer)):

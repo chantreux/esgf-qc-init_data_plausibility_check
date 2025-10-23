@@ -99,7 +99,7 @@ def check_spatial_stadistical_ouliers(dataset, variable, severity=BaseCheck.MEDI
         category=severity,
         description=f"Check for outliers in a dataset based on {parameter} with threshold {threshold}.",
         dataset_name=getattr(dataset, "filepath", lambda: "unknown")(),
-        test_function="check_zscore",
+        test_function="check_spatial_stadistical_outliers",
         parameters={"threshold": threshold, "method": parameter},
         variable=variable,
     )
@@ -161,7 +161,7 @@ def check_spatial_stadistical_ouliers(dataset, variable, severity=BaseCheck.MEDI
     # Messages / result
     if total_coords:
         ctx.add_failure(f"Outliers detected: {len(total_coords)} points.")
-        dump_data_file_extended(dataset, variable, 'check_zscore', ctx, parameter)
+        dump_data_file_extended(dataset, variable, 'check_spatial_stadistical_outliers', ctx, parameter)
     else:
         ctx.messages.append(f"No outliers detected in the dataset based on {parameter}.")
         ctx.add_pass()

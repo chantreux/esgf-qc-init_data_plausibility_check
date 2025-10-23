@@ -18,21 +18,27 @@ from compliance_checker.checks.data_plausibility_checks.utils.auxiliar import (
                         Coordinate)
 
 def check_all_constant(data_slice):
+    print(data_slice.size)
     if np.isscalar(data_slice):
         return True
     elif data_slice.size == 0:
         return False
     else:
         # If it's an array, check if all values are equal to the first one
-        return np.all(data_slice == data_slice.flat[0])
+        return bool(np.all(data_slice == data_slice.flat[0]))
 
 
 
 
 def check_constants(dataset, variable, severity=BaseCheck.MEDIUM):
     """
-    Check for constant values in a dataset.
-    Uses ExtendedTestCtx to store detailed results.
+    Check for nans in a dataset 
+    Parameters:
+    - dataset (netCDF4.Dataset): The dataset containing the values to be checked.
+    - variable (str): The variable to be checked.
+    - json_file (str): The path to the JSON file containing the thresholds.
+    Returns:
+    - dict: A dictionary containing the coordinates and values of detected outliers.
     """
     ctx = ExtendedTestCtx(
         category=severity,
@@ -42,16 +48,15 @@ def check_constants(dataset, variable, severity=BaseCheck.MEDIUM):
         parameters={},
         variable=variable,
     )
-
     check_dims = get_filtered_dimensions(dataset, variable)
     values = check_variable_conditions(dataset, variable, check_dims, check_all_constant)
-    detected = [(coord, val) for coord, val in values if bool]
+    detected = [coord for coord in values if bool]
     if len(detected) > 0:
-        for coord, value in detected:
+        for coord in detected:
             coord_obj = Coordinate(
                 name="constant_values",
                 indices=[coord],
-                values=[value],
+                values=np.unique([dataset[variable][coord]]),
                 result=True
             )
             ctx.coordinates.append(coord_obj)
