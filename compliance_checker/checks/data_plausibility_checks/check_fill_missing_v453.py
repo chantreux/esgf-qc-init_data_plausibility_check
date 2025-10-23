@@ -74,8 +74,6 @@ def load_value_to_check(var_obj, parameter, ctx):
     return parameters_func, ctx
 
 
-
-
 def check_fillvalues_timeseries(
     dataset, variable, parameter="FillValue", severity=BaseCheck.MEDIUM
 ):
@@ -98,33 +96,38 @@ def check_fillvalues_timeseries(
         return ctx
 
     label = "fill_missing"
-    # Detect failed coordinates
-    if len(check_dims) > 1:
-        failing_coords = check_variable_conditions_expanded(
-            dataset, variable, check_dims, check_value, parameters=parameters_func
-        )
-    else:
-        failing_coords = {
-            parameter: {
-                "None": check_variable_conditions(
-                    dataset, variable, check_dims, check_value, parameters=parameters_func
-                )
+    try:
+        # Detect failed coordinates
+        if len(check_dims) > 1:
+            failing_coords = check_variable_conditions_expanded(
+                dataset, variable, check_dims, check_value, parameters=parameters_func
+            )
+        else:
+            failing_coords = {
+                parameter: {
+                    "None": check_variable_conditions(
+                        dataset, variable, check_dims, check_value, parameters=parameters_func
+                    )
+                }
             }
-        }
 
-    flattened= [item for d in failing_coords.values() for v in d.values() for item in v]
-    #check if any fillvalue/missing value detected
-    if len(flattened) > 0:
-        check = True
-    else:
-        check = False
-    #check if fillvalue/missing value are constant
-    detected_diff=detect_changes_in_values(flattened)
-    if len(detected_diff) > 0:
-        check_diff_flag = True
-    else:
-        check_diff_flag = False
-    #Preparing output for each case
+        flattened= [item for d in failing_coords.values() for v in d.values() for item in v]
+        #check if any fillvalue/missing value detected
+        if len(flattened) > 0:
+            check = True
+        else:
+            check = False
+        #check if fillvalue/missing value are constant
+        detected_diff=detect_changes_in_values(flattened)
+        if len(detected_diff) > 0:
+            check_diff_flag = True
+        else:
+            check_diff_flag = False
+        #Preparing output for each case
+    except Exception as e:
+        ctx.add_failure(f"Error during {parameter} check: {e}")
+        return ctx
+    
     if check and check_diff_flag==False:
         total_coords = [coord for (coord, _) in flattened]
         vals = [val1 for (_, val1) in flattened]

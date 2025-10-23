@@ -48,9 +48,13 @@ def check_constants(dataset, variable, severity=BaseCheck.MEDIUM):
         parameters={},
         variable=variable,
     )
-    check_dims = get_filtered_dimensions(dataset, variable)
-    values = check_variable_conditions(dataset, variable, check_dims, check_all_constant)
-    detected = [coord for coord in values if bool]
+    try:
+        check_dims = get_filtered_dimensions(dataset, variable)
+        values = check_variable_conditions(dataset, variable, check_dims, check_all_constant)
+        detected = [coord for coord in values if bool]
+    except Exception as e:
+        ctx.add_failure(f"Error during constant value check: {e}")
+        return ctx
     if len(detected) > 0:
         for coord in detected:
             coord_obj = Coordinate(

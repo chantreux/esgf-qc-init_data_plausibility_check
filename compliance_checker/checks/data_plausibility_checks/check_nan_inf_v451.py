@@ -58,13 +58,13 @@ def check_nan_inf(dataset, variable, parameter="NaN", severity=BaseCheck.MEDIUM)
     if fill_value is not None and np.isnan(fill_value):
         ctx.add_failure("Warning: _FillValue is NaN. See Fill_value check for more information.")
         return ctx
-
-    if parameter == "NaN":
-        check = check_any_nan(data)
-    elif parameter == "Inf":
-        check = check_any_inf(data)
-    else:
-        raise ValueError(f"Invalid parameter {parameter}")
+    try:
+        if parameter == "NaN":
+            check = check_any_nan(data)
+        elif parameter == "Inf":
+            check = check_any_inf(data)
+    except Exception as e:
+        ctx.add_failure(f"Error during {parameter} check: {e}")
 
     if check:
         if parameter == "NaN":

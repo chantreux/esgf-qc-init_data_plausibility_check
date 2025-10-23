@@ -254,7 +254,6 @@ def check_outliers(dataset, thresholds_file='outliers_thresholds.json', severity
         thresholds, variable = get_thresholds_variable(dataset, thresholds_file)
     except ValueError as e:
         ctx.add_failure(f"Error getting thresholds: {str(e)}")
-        dump_data_file(dataset, "NONE", 'check_physically_impossible_outliers', ctx)
         return ctx
 
     data = dataset.variables[variable][:]
@@ -264,7 +263,6 @@ def check_outliers(dataset, thresholds_file='outliers_thresholds.json', severity
         results, check = prepare_results(outliers, thresholds, dataset, variable)
     except Exception as e:
         ctx.add_failure(f"Error preparing results: {e}")
-        dump_data_file(dataset, variable, 'check_physically_impossible_outliers', ctx)
         return ctx
 
     if check:

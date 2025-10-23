@@ -103,11 +103,6 @@ def check_spatial_statistical_ouliers(dataset, variable, severity=BaseCheck.MEDI
         parameters={"threshold": threshold, "method": parameter},
         variable=variable,
     )
-
-    dim_dict = get_var_dimensions(dataset, variable)
-    check_dims = get_filtered_dimensions(dataset, variable)
-    max_ts, min_ts = calculate_time_series_max_min(dataset, variable)
-
     # Define condition functions
     def zscore_condition(data_slice):
         zscores = calculate_zscore(data_slice)
@@ -116,14 +111,20 @@ def check_spatial_statistical_ouliers(dataset, variable, severity=BaseCheck.MEDI
     def iqr_condition(data_slice):
         iqr, q1, q3 = calculate_iqr(data_slice)
         return is_outlier_iqr(data_slice, iqr, q1, q3, threshold),data_slice, iqr
+    
 
-    # Select function according to parameter
-    if parameter == "Z-Score":
-        condition_function = zscore_condition
-    elif parameter == "IQR":
-        condition_function = iqr_condition
-    else:
-        raise ValueError("Invalid parameter. Choose 'Z-Score' or 'IQR'.")
+    dim_dict = get_var_dimensions(dataset, variable)
+    check_dims = get_filtered_dimensions(dataset, variable)
+
+    try:
+        max_ts, min_ts = calculate_time_series_max_min(dataset, variable)
+        # Select function according to parameter
+        if parameter == "Z-Score":
+            condition_function = zscore_condition
+        elif parameter == "IQR":
+            condition_function = iqr_condition
+    except Exception as e:
+        ctx.add_failure(f"Error during {parameter} condition check: {e}")
 
     # if time_dim exists, remove it for spatial checking
     if 't' in dim_dict and dim_dict['t'] in check_dims:
@@ -132,22 +133,24 @@ def check_spatial_statistical_ouliers(dataset, variable, severity=BaseCheck.MEDI
             check_dims.remove(dim_dict['t'])
         except Exception:
             pass
+    try:
+        # Detect outliers
+        if len(check_dims) > 0:
+            values_max = check_variable_conditions_expanded(dataset, variable, check_dims, condition_function, max_ts)
+            values_min = check_variable_conditions_expanded(dataset, variable, check_dims, condition_function, min_ts)
+        else:
+            values_max = {"timeseries": {"max": check_variable_conditions(dataset, variable, check_dims, condition_function, max_ts)}}
+            values_min = {"timeseries": {"min": check_variable_conditions(dataset, variable, check_dims, condition_function, min_ts)}}
 
-    # Detect outliers
-    if len(check_dims) > 0:
-        values_max = check_variable_conditions_expanded(dataset, variable, check_dims, condition_function, max_ts)
-        values_min = check_variable_conditions_expanded(dataset, variable, check_dims, condition_function, min_ts)
-    else:
-        values_max = {"timeseries": {"max": check_variable_conditions(dataset, variable, check_dims, condition_function, max_ts)}}
-        values_min = {"timeseries": {"min": check_variable_conditions(dataset, variable, check_dims, condition_function, min_ts)}}
-
-    flattened_min = [item for d in values_min.values() for v in d.values() for item in v]
-    flattened_max = [item for d in values_max.values() for v in d.values() for item in v]
-    flattened = flattened_min + flattened_max
-    total_coords = [coord for (coord, _, _) in flattened]
-    vals = [val1 for (_, val1, _) in flattened]
-    scores = [score1 for (_, _, score1) in flattened]
-    print(f"Flattened values_min: total_coords={total_coords}, vals={vals}, scores={scores}")
+        flattened_min = [item for d in values_min.values() for v in d.values() for item in v]
+        flattened_max = [item for d in values_max.values() for v in d.values() for item in v]
+        flattened = flattened_min + flattened_max
+        total_coords = [coord for (coord, _, _) in flattened]
+        vals = [val1 for (_, val1, _) in flattened]
+        scores = [score1 for (_, _, score1) in flattened]
+    except Exception as e:
+        ctx.add_failure(f"Error during outlier detection: {e}")
+        return ctx
     # Save as Coordinate objects in ctx.coordinates
     for coord,value,score in zip(total_coords, vals, scores):
         coord_obj = Coordinate(
