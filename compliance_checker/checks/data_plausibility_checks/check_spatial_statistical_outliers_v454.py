@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-check_spatial_stadistical_outliers.py
+check_spatial_statistical_outliers.py
 
 Check for outliers in the specified netCDF dataset based on the Z-Score along specific dimensions.
 """
@@ -92,14 +92,14 @@ def collect_all_outlier_coords(values_dict):
 
 
 
-def check_spatial_stadistical_ouliers(dataset, variable, severity=BaseCheck.MEDIUM, threshold=5, parameter="Z-Score"):
+def check_spatial_statistical_ouliers(dataset, variable, severity=BaseCheck.MEDIUM, threshold=5, parameter="Z-Score"):
 
 
     ctx = ExtendedTestCtx(
         category=severity,
         description=f"Check for outliers in a dataset based on {parameter} with threshold {threshold}.",
         dataset_name=getattr(dataset, "filepath", lambda: "unknown")(),
-        test_function="check_spatial_stadistical_outliers",
+        test_function="check_spatial_statistical_outliers",
         parameters={"threshold": threshold, "method": parameter},
         variable=variable,
     )
@@ -161,7 +161,7 @@ def check_spatial_stadistical_ouliers(dataset, variable, severity=BaseCheck.MEDI
     # Messages / result
     if total_coords:
         ctx.add_failure(f"Outliers detected: {len(total_coords)} points.")
-        dump_data_file_extended(dataset, variable, 'check_spatial_stadistical_outliers', ctx, parameter)
+        dump_data_file_extended(dataset, variable, 'check_spatial_statistical_outliers', ctx, parameter)
     else:
         ctx.messages.append(f"No outliers detected in the dataset based on {parameter}.")
         ctx.add_pass()
