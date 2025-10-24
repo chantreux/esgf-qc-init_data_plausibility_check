@@ -36,7 +36,6 @@ def check_constants(dataset, variable, severity=BaseCheck.MEDIUM):
     Parameters:
     - dataset (netCDF4.Dataset): The dataset containing the values to be checked.
     - variable (str): The variable to be checked.
-    - json_file (str): The path to the JSON file containing the thresholds.
     Returns:
     - TestCtx: An object containing detailed results of the check, including
       pass/failure status, messages, and coordinates of detected outliers.
